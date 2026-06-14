@@ -22,12 +22,22 @@ elif command -v apt-get >/dev/null 2>&1; then PKG=apt
 else echo "未找到 dnf/yum/apt"; exit 1; fi
 echo "包管理器：$PKG | 应用端口(仅本机)：$APP_PORT | 配置nginx：$SETUP_NGINX"
 
-echo "[1/6] Docker（仅当缺失才装，不动现有 Docker/容器）…"
+echo "[1/6] Docker（国内镜像加速，仅当缺失才装，不动现有 Docker/容器）…"
 if command -v docker >/dev/null 2>&1; then
-  echo "  已检测到 Docker，跳过安装。"
+  echo "  已检测到 Docker，跳过安装与配置（不动现有 Docker）。"
+  grep -q "registry-mirrors" /etc/docker/daemon.json 2>/dev/null || \
+    echo "  提示：未见镜像加速，构建拉取基础镜像可能较慢；如需可手动加 registry-mirrors 并重启 docker。"
 else
-  curl -fsSL https://get.docker.com | sh
+  curl -fsSL https://get.docker.com | sh -s -- --mirror Aliyun
   systemctl enable --now docker
+  mkdir -p /etc/docker
+  cat > /etc/docker/daemon.json <<'JSON'
+{
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com", "https://docker.m.daocloud.io"]
+}
+JSON
+  systemctl restart docker
+  echo "  已配置镜像加速（腾讯云/DaoCloud）。"
 fi
 docker compose version >/dev/null 2>&1 || echo "  注意：缺 'docker compose' 插件，请装 docker-compose-plugin。"
 
